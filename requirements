@@ -1,0 +1,7 @@
+plotly==5.22.0
+pyqtdarktheme==2.1.0
+numpy
+polars
+pyqt6
+PyQt6-WebEngine
+qt-material==2.14

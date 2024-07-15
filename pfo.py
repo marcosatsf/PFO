@@ -104,8 +104,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(tabs)
 
     def save_file(self, s):
-        print("click", s)
-
+        print('clicked ', s)
+        self.model.save_to_file()
 
     def update_charts(self):
         value = self.model.get_pix_data()

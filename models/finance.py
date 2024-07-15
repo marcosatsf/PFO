@@ -37,8 +37,8 @@ class FinanceModel(QtCore.QAbstractTableModel):
             'Saldo': pl.Float64(),
             'Categoria': pl.String()
             })
-
-        df = pl.read_csv(path, separator=';', schema=self.schema, decimal_comma=True)
+        self.separator_defined = ';'
+        df = pl.read_csv(path, separator=self.separator_defined, schema=self.schema, decimal_comma=True)
         df = df.with_columns(
             pl.col('Descrição')\
             .map_elements(lambda val: val.split(':')[0] , return_dtype=pl.String)\
@@ -213,6 +213,12 @@ class FinanceModel(QtCore.QAbstractTableModel):
         """
         self._data = self._data.sort('Data')\
                 .with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
+
+
+    def save_to_file(self) -> bool:
+        file_name = f'checkpoint_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
+        self._data.write_csv(file_name, separator=self.separator_defined)
+        return True
 
 #------------------------ QUERIES TO BE ADDED
     def get_pix_data(self):

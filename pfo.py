@@ -10,7 +10,6 @@ import plotly.graph_objects as go
 from chart_lib.generate_chart import generate_test_data, create_plot_bar, create_scatterplot
 from dialogs import AddNewRegistry
 from models.finance import FinanceModel
-# import qdarktheme
 from qt_material import apply_stylesheet
 
 

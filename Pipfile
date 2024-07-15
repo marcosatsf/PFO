@@ -5,10 +5,9 @@ name = "pypi"
 
 [packages]
 plotly = "==5.22.0"
-pyqtdarktheme = "==2.1.0"
-numpy = "*"
-polars = "*"
-pyqt6 = "*"
+numpy = "==2.0.0"
+polars = "==1.1.0"
+pyqt6 = "==6.7.0"
 pyqt6-webengine = "*"
 qt-material = "==2.14"
 

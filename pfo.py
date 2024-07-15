@@ -1,7 +1,8 @@
 import sys
-from PyQt6 import QtCore, QtGui
-from PyQt6.QtWidgets import (QMainWindow, QApplication, QTableView, QPushButton, QDialogButtonBox,
-                             QHeaderView, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout)
+from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtWidgets import (QMainWindow, QApplication, QTableView,
+                             QPushButton, QToolBar, QHeaderView, QTabWidget,
+                             QWidget, QVBoxLayout, QHBoxLayout)
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCore import Qt, QSize
 import polars as pl
@@ -10,7 +11,6 @@ import plotly.graph_objects as go
 from chart_lib.generate_chart import generate_test_data, create_plot_bar, create_scatterplot
 from dialogs import AddNewRegistry
 from models.finance import FinanceModel
-# import qdarktheme
 from qt_material import apply_stylesheet
 
 
@@ -29,6 +29,32 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("PFO - Personal Finance Organizer")
         self.model = FinanceModel('extrato_clean.csv')
+
+        menu = self.menuBar()
+        file_menu = menu.addMenu("Arquivo")
+
+        # Save menu
+        save_file = QAction(QIcon("assets\icons\in.png"), "Salvar dados", self)
+        save_file.triggered.connect(self.save_file)
+        save_file.setCheckable(True)
+        # Carregar menu
+        load_file = QAction(QIcon("assets\icons\in.png"), "Carregar arquivo", self)
+        load_file.triggered.connect(self.save_file)
+        load_file.setCheckable(True)
+        # Download menu
+        down_file = QAction(QIcon("assets\icons\in.png"), "Download de arquivo", self)
+        down_file.triggered.connect(self.save_file)
+        down_file.setCheckable(True)
+        # Restaurar menu
+        restore_file = QAction(QIcon("assets\icons\in.png"), "Restaurar dados", self)
+        restore_file.triggered.connect(self.save_file)
+        restore_file.setCheckable(True)
+
+        file_menu.addAction(save_file)
+        file_menu.addAction(load_file)
+        file_menu.addAction(down_file)
+        file_menu.addAction(restore_file)
+
 
         # ------- Add 'Analises' TAB
         tabs = QTabWidget()
@@ -57,6 +83,7 @@ class MainWindow(QMainWindow):
         self.table.setModel(self.model)
         # print(self.model.data())
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode(3))
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode(3))
         vlayout.addWidget(self.table)
 
         hlayout = QHBoxLayout()
@@ -76,6 +103,9 @@ class MainWindow(QMainWindow):
         self.setFixedSize(QSize(1600, 900))
         self.setCentralWidget(tabs)
 
+    def save_file(self, s):
+        print("click", s)
+
 
     def update_charts(self):
         value = self.model.get_pix_data()
@@ -91,21 +121,17 @@ class MainWindow(QMainWindow):
 
 
     def add(self, s):
-        print('click', s)
         dlg = AddNewRegistry()
         print(self.model.get_pix_data())
         if dlg.exec():
             self.model.add_registry(dlg.get_filled_data())
 
-    def remove(self, indexes):
-        for e in self.table.selectionModel().selectedRows():
-            self.model.removeRow(e)
-            print(e.row(), e.column())
-        print(indexes)
+    def remove(self):
+        for qitem in self.table.selectionModel().selectedRows():
+            self.model.remove_registry(qitem)
 
 
 app=QApplication(sys.argv)
-# qdarktheme.setup_theme("auto")
 window=MainWindow()
 # setup stylesheet
 apply_stylesheet(app, theme='dark_red.xml', extra=extra)

@@ -235,3 +235,6 @@ class FinanceModel(QtCore.QAbstractTableModel):
                 'Data',
                 pl.col('Saldo').last().over('Data').alias('saldo final do dia')
                 ).unique().sort('Data').to_dict()
+
+    # def get_current_amount(self):
+    #     return self._data.select('Data', 'Saldo').to_dict()

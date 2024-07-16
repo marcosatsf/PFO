@@ -83,6 +83,41 @@ def generate_test_data():
     fig.update_layout(template='plotly_dark')
     return fig
 
+def create_plot_bar_2(fig, X, Y, category):
+    # fig = go.Figure()
+    random.seed()
+    dict_colors = {}
+    cum_sum = 0
+    for idx, cat in enumerate(category):
+        if dict_colors.get(cat):
+            marker = {'color':dict_colors.get(cat)}
+            pick_legend = False
+        else:
+            dict_colors[cat] = f"rgb({random.randrange(0, 255)}, {random.randrange(0, 255)}, {random.randrange(0, 255)})"
+            marker = {'color':dict_colors.get(cat)}
+            pick_legend = True
+        fig.add_trace(
+            go.Bar(
+                x=[X[idx]],
+                y=[Y[idx]], 
+                name=cat, 
+                base=cum_sum if idx > 0 or X[idx] == X[idx-1] else 0,
+                marker=marker, 
+                showlegend=pick_legend,
+                legendgroup=cat,
+                text=f'R$ {Y[idx]}'
+                )
+        )
+        cum_sum += Y[idx]
+    # fig.add_trace(
+    #         go.Line(x=[X[idx]], y=[sum(Y)], name='Saldo')
+    #     )
+    fig.update_xaxes(title_text='Date [MM DD, YYYY]')
+    fig.update_yaxes(title_text='valor')
+    fig.update_layout(template='plotly_dark', title='Test Pix')
+    return fig
+
+
 def create_plot_bar(fig, X, Y, category):
     # fig = go.Figure()
     random.seed()
@@ -96,21 +131,51 @@ def create_plot_bar(fig, X, Y, category):
             marker = {'color':dict_colors.get(cat)}
             pick_legend = True
         fig.add_trace(
-            go.Bar(x=[X[idx]], y=[Y[idx]], name=cat, marker=marker, showlegend=pick_legend)
+            go.Bar(
+                x=[X[idx]],
+                y=[Y[idx]], 
+                name=cat, 
+                marker=marker, 
+                showlegend=pick_legend,
+                legendgroup=cat,
+                text=f'+ R$ {abs(Y[idx])}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx])}',
+                hoverinfo='name+text'
+                )
         )
     # fig.add_trace(
     #         go.Line(x=[X[idx]], y=[sum(Y)], name='Saldo')
     #     )
-    fig.update_xaxes(title_text='Date [MM DD, YYYY]')
+
+    # range_dates = [X[0]+datetime.timedelta(days=day) for day in range((X[-1]-X[0]).days)]
+    # excluded_dates = list(set(range_dates).difference(X))
+    # print(excluded_dates, range_dates)
+    fig.update_xaxes(
+        title_text='Date [MM DD, YYYY]',
+        griddash='dot',
+        # rangebreaks=[{'values':excluded_dates}]
+        )
     fig.update_yaxes(title_text='valor')
-    fig.update_layout(template='plotly_dark', title='Test Pix')
+    fig.update_layout(template='plotly_dark', title='Test Pix', barmode='relative')
     return fig
+
 
 def create_scatterplot(fig, X, Y):
     random.seed()
     marker = {'color':f"rgb({random.randrange(0, 255)}, {random.randrange(0, 255)}, {random.randrange(0, 255)})"}
 
-    fig.add_trace(go.Scatter(x=X, y=Y, textposition='top center',mode='lines+markers+text', name='Saldo do dia', marker=marker, legendrank=1))
+    fig.add_trace(
+        go.Scatter(
+            x=X,
+            y=Y,
+            text=[f'R$ {value}' for value in Y],
+            textposition='top center',
+            mode='lines+markers+text',
+            name='Saldo do dia',
+            marker=marker,
+            legendrank=1,
+            hoverinfo='name+text',
+            line={'shape':'spline'}
+            ))
     # fig.add_trace(
     #         go.Line(x=[X[idx]], y=[sum(Y)], name='Saldo')
     #     )

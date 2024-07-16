@@ -109,13 +109,15 @@ class MainWindow(QMainWindow):
 
     def update_charts(self):
         value = self.model.get_pix_data()
-        # print(value)
+        print(value)
         fig = go.Figure()
         fig = create_plot_bar(fig, value['Data'], value['Valor'], value['Categoria'])
 
         value = self.model.get_total_amount_by_day()
+        # value = self.model.get_current_amount()
         # print(value)
         fig = create_scatterplot(fig, value['Data'], value['saldo final do dia'])
+        # fig = create_scatterplot(fig, value['Data'], value['Saldo'])
         # fig = generate_test_data()
         self.browser.setHtml(fig.to_html(include_plotlyjs='cdn'))
 

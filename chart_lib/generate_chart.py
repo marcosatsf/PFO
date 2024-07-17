@@ -105,7 +105,7 @@ def create_plot_bar_2(fig, X, Y, category):
                 marker=marker, 
                 showlegend=pick_legend,
                 legendgroup=cat,
-                text=f'R$ {Y[idx]}'
+                text=f'R$ {Y[idx]:.2f}'
                 )
         )
         cum_sum += Y[idx]
@@ -133,12 +133,13 @@ def create_plot_bar(fig, X, Y, category):
         fig.add_trace(
             go.Bar(
                 x=[X[idx]],
-                y=[Y[idx]], 
-                name=cat, 
-                marker=marker, 
+                y=[Y[idx]],
+                name=cat,
+                marker=marker,
                 showlegend=pick_legend,
                 legendgroup=cat,
-                text=f'+ R$ {abs(Y[idx])}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx])}',
+                text=f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}',
+                textposition='none',
                 hoverinfo='name+text'
                 )
         )
@@ -167,7 +168,7 @@ def create_scatterplot(fig, X, Y):
         go.Scatter(
             x=X,
             y=Y,
-            text=[f'R$ {value}' for value in Y],
+            text=[f'R$ {value:.2f}' for value in Y],
             textposition='top center',
             mode='lines+markers+text',
             name='Saldo do dia',

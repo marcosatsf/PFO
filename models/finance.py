@@ -3,6 +3,8 @@ import datetime
 from polars import DataFrame
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QSize, QModelIndex
+from schema.finance import FinanceSchema
+from models.preprocess import load_csv_df
 
 class FinanceModel(QtCore.QAbstractTableModel):
 
@@ -30,20 +32,17 @@ class FinanceModel(QtCore.QAbstractTableModel):
             'Categoria': "🚩",
         }
 
-        self.schema = pl.Schema({
-            'Data': pl.Date(),
-            'Descrição': pl.String(),
-            'Valor': pl.Float64(),
-            'Saldo': pl.Float64(),
-            'Categoria': pl.String()
-            })
+        self.schema = FinanceSchema()
         self.separator_defined = ';'
-        df = pl.read_csv(path, separator=self.separator_defined, schema=self.schema, decimal_comma=True)
+        df = load_csv_df(path,
+                           separator=self.separator_defined,
+                           schema=self.schema
+                           )
         df = df.with_columns(
-            pl.col('Descrição')\
-            .map_elements(lambda val: val.split(':')[0] , return_dtype=pl.String)\
-            .alias('Categoria')
-            )#.sort(self.column_name_maps['dia'], descending=True)
+                pl.col('Descrição')\
+                .map_elements(lambda val: val.split(':')[0] , return_dtype=pl.String)\
+                .alias('Categoria')
+                )
         self._data = df
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> str:
@@ -59,7 +58,10 @@ class FinanceModel(QtCore.QAbstractTableModel):
         """
         if role == Qt.ItemDataRole.DisplayRole:
             value = self._data.item(row=index.row(), column=index.column())
-            return str(value)
+            if isinstance(value, float):
+                return f'{value:.2f}'
+            else:
+                return str(value)
         # if role == Qt.ItemDataRole.InitialSortOrderRole:
         #     value = self._data.sort(pl.col(index))
         #     return str(value)
@@ -205,6 +207,26 @@ class FinanceModel(QtCore.QAbstractTableModel):
         self.endInsertRows()
         self.layoutChanged.emit()
         return True
+    
+
+    def add_rows(self, new_df) -> bool:
+        """
+        Adds a registry to the data
+
+        Args:
+            dict_row (dict): A dictionary filled with:
+                date, description, operation and amount
+
+        Returns:
+            bool: True when success
+        """
+        self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount()+new_df.shape[0]-1)
+        self._data = pl.concat([self._data, new_df], rechunk=True).sort('Data')
+        self.recalculate_data()
+        # self._data = self._data.with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
+        self.endInsertRows()
+        self.layoutChanged.emit()
+        return True
 
 
     def recalculate_data(self):
@@ -222,6 +244,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
 
 #------------------------ QUERIES TO BE ADDED
     def get_pix_data(self):
+        print(self._data)
         return self._data\
             .group_by('Data', 'Categoria')\
             .agg(pl.col('Valor').sum())\

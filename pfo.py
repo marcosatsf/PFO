@@ -1,16 +1,16 @@
 import sys
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (QMainWindow, QApplication, QTableView,
-                             QPushButton, QToolBar, QHeaderView, QTabWidget,
+                             QPushButton, QFileDialog, QHeaderView, QTabWidget,
                              QWidget, QVBoxLayout, QHBoxLayout)
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCore import Qt, QSize
 import polars as pl
-from polars import DataFrame
 import plotly.graph_objects as go
 from chart_lib.generate_chart import generate_test_data, create_plot_bar, create_scatterplot
 from dialogs import AddNewRegistry
 from models.finance import FinanceModel
+from models.preprocess import pre_process_csv
 from qt_material import apply_stylesheet
 
 
@@ -38,8 +38,8 @@ class MainWindow(QMainWindow):
         save_file.triggered.connect(self.save_file)
         save_file.setCheckable(True)
         # Carregar menu
-        load_file = QAction(QIcon("assets\icons\in.png"), "Carregar arquivo", self)
-        load_file.triggered.connect(self.save_file)
+        load_file = QAction(QIcon("assets\icons\in.png"), "Carregar+ arquivo", self)
+        load_file.triggered.connect(self.loadplus_file)
         load_file.setCheckable(True)
         # Download menu
         down_file = QAction(QIcon("assets\icons\in.png"), "Download de arquivo", self)
@@ -103,19 +103,24 @@ class MainWindow(QMainWindow):
         self.setFixedSize(QSize(1600, 900))
         self.setCentralWidget(tabs)
 
-    def save_file(self, s):
-        print('clicked ', s)
+    def save_file(self):
+        print('clicked ')
         self.model.save_to_file()
+
+    def loadplus_file(self):
+        fileName = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
+        self.model.add_rows(pre_process_csv(fileName[0]))
+        print(self.model._data)
 
     def update_charts(self):
         value = self.model.get_pix_data()
-        print(value)
+        # print(value)
         fig = go.Figure()
         fig = create_plot_bar(fig, value['Data'], value['Valor'], value['Categoria'])
 
         value = self.model.get_total_amount_by_day()
         # value = self.model.get_current_amount()
-        # print(value)
+        print(value)
         fig = create_scatterplot(fig, value['Data'], value['saldo final do dia'])
         # fig = create_scatterplot(fig, value['Data'], value['Saldo'])
         # fig = generate_test_data()

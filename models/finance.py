@@ -4,7 +4,7 @@ from polars import DataFrame
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QSize, QModelIndex
 from schema.finance import FinanceSchema
-from models.preprocess import load_csv_df
+from models.preprocess import load_csv_df, pre_process_csv
 
 class FinanceModel(QtCore.QAbstractTableModel):
 
@@ -34,16 +34,8 @@ class FinanceModel(QtCore.QAbstractTableModel):
 
         self.schema = FinanceSchema()
         self.separator_defined = ';'
-        df = load_csv_df(path,
-                           separator=self.separator_defined,
-                           schema=self.schema
-                           )
-        df = df.with_columns(
-                pl.col('Descrição')\
-                .map_elements(lambda val: val.split(':')[0] , return_dtype=pl.String)\
-                .alias('Categoria')
-                )
-        self._data = df
+        self._data = pre_process_csv(path)
+
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> str:
         """
@@ -201,7 +193,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
             'Categoria': ['Manually added!']
         }
         df_dict_row = pl.DataFrame(data_to_be_added, schema=self.schema)
-        self._data = pl.concat([self._data, df_dict_row], rechunk=True).sort('Data')
+        self._data = pl.concat([self._data, df_dict_row], rechunk=True)
         self.recalculate_data()
         # self._data = self._data.with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
         self.endInsertRows()
@@ -221,7 +213,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
             bool: True when success
         """
         self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount()+new_df.shape[0]-1)
-        self._data = pl.concat([self._data, new_df], rechunk=True).sort('Data')
+        self._data = pl.concat([self._data, new_df], rechunk=True)
         self.recalculate_data()
         # self._data = self._data.with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
         self.endInsertRows()
@@ -233,31 +225,51 @@ class FinanceModel(QtCore.QAbstractTableModel):
         """
         Recalculates the cumulative sum.
         """
-        self._data = self._data.sort('Data')\
+        self._data = self._data.sort(*self._data.columns)\
                 .with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
 
 
-    def save_to_file(self) -> bool:
-        file_name = f'checkpoint_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
-        self._data.write_csv(file_name, separator=self.separator_defined)
+    def save_to_file(self, file) -> bool:
+        self._data.write_csv(file, separator=self.separator_defined,float_precision=2)
         return True
 
 #------------------------ QUERIES TO BE ADDED
-    def get_pix_data(self):
-        print(self._data)
+    def get_transactions_by(self, refresh_schedule: str):
+        match refresh_schedule:
+            case 'weekly':
+                trunc_str = '1w'
+            case 'monthly':
+                trunc_str = '1mo'
+            case 'quarterly':
+                trunc_str = '1q'
+            case 'yearly':
+                trunc_str = '1y'
+            case 'daily' | _:
+                trunc_str = '1d'
         return self._data\
-            .group_by('Data', 'Categoria')\
+            .group_by(pl.col('Data').dt.truncate(trunc_str), 'Descrição', 'Categoria')\
             .agg(pl.col('Valor').sum())\
             .sort('Data').to_dict()
             # .filter(pl.col(self.column_name_maps['cat']).str.contains('Pix'))\
             #.dt.truncate('1mo')
 
-    def get_total_amount_by_day(self):
+    def get_total_amount_by(self, refresh_schedule: str ):
+        match refresh_schedule:
+            case 'weekly':
+                trunc_str = '1w'
+            case 'monthly':
+                trunc_str = '1mo'
+            case 'quarterly':
+                trunc_str = '1q'
+            case 'yearly':
+                trunc_str = '1y'
+            case 'daily' | _:
+                trunc_str = '1d'
         return self._data\
             .select(
-                'Data',
-                pl.col('Saldo').last().over('Data').alias('saldo final do dia')
-                ).unique().sort('Data').to_dict()
+                pl.col('Data').dt.truncate(trunc_str),
+                pl.col('Saldo').last().over(pl.col('Data').dt.truncate(trunc_str)).alias('Saldo período')
+                ).sort('Data').to_dict()
 
     # def get_current_amount(self):
     #     return self._data.select('Data', 'Saldo').to_dict()

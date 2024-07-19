@@ -1,19 +1,23 @@
+import os
 import sys
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (QMainWindow, QApplication, QTableView,
                              QPushButton, QFileDialog, QHeaderView, QTabWidget,
-                             QWidget, QVBoxLayout, QHBoxLayout)
+                             QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
+                             QSizePolicy, QLabel)
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCore import Qt, QSize
 import polars as pl
 import plotly.graph_objects as go
 from chart_lib.generate_chart import generate_test_data, create_plot_bar, create_scatterplot
-from dialogs import AddNewRegistry
+import datetime
+from dialogs.addnewregistry import AddNewRegistry
+from dotenv import load_dotenv
 from models.finance import FinanceModel
 from models.preprocess import pre_process_csv
 from qt_material import apply_stylesheet
 
-
+load_dotenv()
 extra = {
 
     # Button colors
@@ -28,7 +32,8 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("PFO - Personal Finance Organizer")
-        self.model = FinanceModel('extrato_clean.csv')
+        self.load_set_envs()
+        self.model = FinanceModel(self.initial_load_filename)
 
         menu = self.menuBar()
         file_menu = menu.addMenu("Arquivo")
@@ -41,37 +46,68 @@ class MainWindow(QMainWindow):
         load_file = QAction(QIcon("assets\icons\in.png"), "Carregar+ arquivo", self)
         load_file.triggered.connect(self.loadplus_file)
         load_file.setCheckable(True)
-        # Download menu
-        down_file = QAction(QIcon("assets\icons\in.png"), "Download de arquivo", self)
-        down_file.triggered.connect(self.save_file)
-        down_file.setCheckable(True)
         # Restaurar menu
         restore_file = QAction(QIcon("assets\icons\in.png"), "Restaurar dados", self)
-        restore_file.triggered.connect(self.save_file)
+        restore_file.triggered.connect(self.restore_file)
         restore_file.setCheckable(True)
 
         file_menu.addAction(save_file)
         file_menu.addAction(load_file)
-        file_menu.addAction(down_file)
         file_menu.addAction(restore_file)
 
-
+        self.current_refresh = 'daily'
         # ------- Add 'Analises' TAB
         tabs = QTabWidget()
         tabs.setTabPosition(QTabWidget.TabPosition.North)
         tabs.setDocumentMode(True)
         tabs.setMovable(False)
 
-        # JUST TEST CHARTS!!!!
+        hlayout_analysis = QHBoxLayout()
+        #--------------------------
+        #menu|---------chart-------
+        #--------------------------
+        # Menu
+        # self.chart_opt = QLabel('Wow')
+        menu_vlayout = QVBoxLayout()
+        self.chart_menu = QWidget()
+        # self.chart_opt.setTabPosition(QTabWidget.TabPosition.West)
+        qsize_chartopt = QSizePolicy()
+        qsize_chartopt.setHorizontalStretch(1)
+        self.chart_menu.setSizePolicy(qsize_chartopt)
+
+        # Daily group
+        daily_b = QPushButton(QIcon("assets\icons\in.png"), "Daily", self)
+        daily_b.setEnabled(True)
+
+        # Carregar menu
+        weekly_b = QPushButton(QIcon("assets\icons\out.png"), "Weekly", self)
+        weekly_b.setEnabled(True)
+
+        menu_vlayout.addWidget(daily_b)
+        menu_vlayout.addWidget(weekly_b)
+        self.chart_menu.setLayout(menu_vlayout)
+        hlayout_analysis.addWidget(self.chart_menu)
+
+        # Chart
         self.browser = QWebEngineView(self)
+        # qsize_browser = QSizePolicy()
+        # qsize_browser.setHorizontalStretch(4)
+        # self.browser.setSizePolicy(qsize_browser)
+        hlayout_analysis.addWidget(self.browser)
+
         self.update_charts()
         self.model.layoutChanged.connect(self.update_charts)
-        tabs.addTab(self.browser, 'Analises')
+
+        analysis = QWidget()
+        analysis.setLayout(hlayout_analysis)
+        tabs.addTab(analysis, 'Analises')
 
         # ------- Add 'Extrato' TAB
         vlayout = QVBoxLayout()
+        #--------------------------
+        #----------table-----------
+        #--add-------|-----remove--
         self.table = QTableView()
-
         # self.table.setFixedWidth(800)
         # To resize table header given its contents
         # stretched_size = self.table.horizontalHeader().sectionSize(0)
@@ -95,33 +131,75 @@ class MainWindow(QMainWindow):
         hlayout.addWidget(self.button_add)
         hlayout.addWidget(self.button_remove)
         vlayout.addLayout(hlayout)
-        widget = QWidget()
-        widget.setLayout(vlayout)
-        tabs.addTab(widget, 'Extrato')
+        statement = QWidget()
+        statement.setLayout(vlayout)
+        tabs.addTab(statement, 'Extrato')
 
+        daily_b.clicked.connect(self.update_refresh('daily'))
+        weekly_b.clicked.connect(self.update_refresh('weekly'))
         # QMainWindow configs
         self.setFixedSize(QSize(1600, 900))
         self.setCentralWidget(tabs)
 
+
+    def load_set_envs(self):
+        self.initial_load_filename = os.getenv('INITIAL_LOAD_PATH')
+        print(self.initial_load_filename)
+        if not self.initial_load_filename:
+            dlg = QMessageBox(self)
+            dlg.setWindowTitle("Tem algo errado 😅 !")
+            dlg.setText("Por favor, selecione um arquivo a ser carregado inicialmente!")
+            dlg.exec()
+            self.initial_load_filename, _ = QFileDialog.getOpenFileName(self, 'Open first CSV', '', filter='Arquivos CSV (*.csv)')
+            self.set_initial_path_env(self.initial_load_filename)
+
+
+    def update_refresh(self, refresh):
+        def set_refresh():
+            self.current_refresh = refresh
+            self.update_charts()
+        return set_refresh
+
+
+    def set_initial_path_env(self, path):
+        with open('.env', 'w') as f:
+                f.write(f'INITIAL_LOAD_PATH="{path}"')
+
+
     def save_file(self):
-        print('clicked ')
-        self.model.save_to_file()
+        filename = f'checkpoint_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
+        self.model.save_to_file(filename)
+        self.set_initial_path_env(filename)
+
+
 
     def loadplus_file(self):
-        fileName = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
-        self.model.add_rows(pre_process_csv(fileName[0]))
-        print(self.model._data)
+        filename, _ = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
+        if filename:
+            self.model.add_rows(pre_process_csv(filename))
+            print(self.model._data)
+
+
+    def restore_file(self):
+        filename, _ = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
+        if filename:
+            self.model = FinanceModel(filename)
+            print(self.model._data)
+
 
     def update_charts(self):
-        value = self.model.get_pix_data()
-        # print(value)
         fig = go.Figure()
-        fig = create_plot_bar(fig, value['Data'], value['Valor'], value['Categoria'])
 
-        value = self.model.get_total_amount_by_day()
+        bar_values = self.model.get_transactions_by(refresh_schedule=self.current_refresh)
+        # print(value)
+        
+        fig = create_plot_bar(fig, bar_values['Data'], bar_values['Valor'], bar_values['Categoria'], bar_values['Descrição'], self.current_refresh)
+
+        scatter_values = self.model.get_total_amount_by(refresh_schedule=self.current_refresh)
         # value = self.model.get_current_amount()
-        print(value)
-        fig = create_scatterplot(fig, value['Data'], value['saldo final do dia'])
+        print(scatter_values)
+        #['Data'], value['Saldo período']
+        fig = create_scatterplot(fig, *scatter_values.values(), self.current_refresh)
         # fig = create_scatterplot(fig, value['Data'], value['Saldo'])
         # fig = generate_test_data()
         self.browser.setHtml(fig.to_html(include_plotlyjs='cdn'))
@@ -129,7 +207,7 @@ class MainWindow(QMainWindow):
 
     def add(self, s):
         dlg = AddNewRegistry()
-        print(self.model.get_pix_data())
+        print(self.model.get_transactions_by(refresh_schedule=self.current_refresh))
         if dlg.exec():
             self.model.add_registry(dlg.get_filled_data())
 

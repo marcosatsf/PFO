@@ -8,8 +8,10 @@ plotly = "==5.22.0"
 numpy = "==2.0.0"
 polars = "==1.1.0"
 pyqt6 = "==6.7.0"
-pyqt6-webengine = "*"
+pyqt6-qt6 = "==6.7.2"
+pyqt6-webengine = "==6.7.0"
 qt-material = "==2.14"
+python-dotenv = "==1.0.1"
 
 [dev-packages]
 

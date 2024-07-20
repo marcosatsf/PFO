@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b88ba50dea9bd7ef1247a8f139c0c076f53846e0fd1c1dc0957e5f87cba169a9"
+            "sha256": "5519e70468274d261a0c021298090c882cfc72a5b5fa8926162b8862c891da21"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -194,6 +194,7 @@
                 "sha256:b2d7e5ddb1b9764cd60f1d730fa7bf7a1f0f61b2630967c81761d3d0a5a8a2e0",
                 "sha256:fc93945eaef4536d68bd53566535efcbe78a7c05c2a533790a8fd022bac8bfaa"
             ],
+            "index": "pypi",
             "version": "==6.7.2"
         },
         "pyqt6-sip": {
@@ -253,6 +254,15 @@
                 "sha256:e4ca2807e435a9e89e8c470a336c4ef0cc96714b113241ce93ac43484b82a4f6"
             ],
             "version": "==6.7.2"
+        },
+        "python-dotenv": {
+            "hashes": [
+                "sha256:e324ee90a023d808f1959c46bcbc04446a10ced277783dc6ee09987c37ec10ca",
+                "sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.8'",
+            "version": "==1.0.1"
         },
         "qt-material": {
             "hashes": [

@@ -83,7 +83,19 @@ def generate_test_data():
     fig.update_layout(template='plotly_dark')
     return fig
 
-def create_plot_bar(fig, X, Y, category):
+
+def create_plot_bar_2(fig, X, Y, category, schedule):
+    match schedule:
+        case 'weekly':
+            refresh = 'Semana'
+        case 'monthly':
+            refresh = 'Mês'
+        case 'quarterly':
+            refresh = 'Quartil'
+        case 'yearly':
+            refresh = 'Ano'
+        case 'daily' | _:
+            refresh = 'Dia'
     # fig = go.Figure()
     random.seed()
     dict_colors = {}
@@ -96,25 +108,132 @@ def create_plot_bar(fig, X, Y, category):
             marker = {'color':dict_colors.get(cat)}
             pick_legend = True
         fig.add_trace(
-            go.Bar(x=[X[idx]], y=[Y[idx]], name=cat, marker=marker, showlegend=pick_legend)
+            go.Bar(
+                x=[X[idx]],
+                y=[Y[idx]],
+                name=cat,
+                marker=marker,
+                showlegend=pick_legend,
+                legendgroup=cat,
+                text=f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}',
+                textposition='none',
+                hoverinfo='name+text'
+                )
         )
     # fig.add_trace(
     #         go.Line(x=[X[idx]], y=[sum(Y)], name='Saldo')
     #     )
-    fig.update_xaxes(title_text='Date [MM DD, YYYY]')
+
+    # range_dates = [X[0]+datetime.timedelta(days=day) for day in range((X[-1]-X[0]).days)]
+    # excluded_dates = list(set(range_dates).difference(X))
+    # print(excluded_dates, range_dates)
+    fig.update_xaxes(
+        title_text=f'Período [{refresh}]',
+        griddash='dot',
+        # rangebreaks=[{'values':excluded_dates}]
+        )
     fig.update_yaxes(title_text='valor')
-    fig.update_layout(template='plotly_dark', title='Test Pix')
+    fig.update_layout(template='plotly_dark', title='Movimentações / Posição', barmode='relative')
     return fig
 
-def create_scatterplot(fig, X, Y):
+
+def create_plot_bar(fig, X, Y, category, description, schedule):
+    fig = make_subplots(rows=2, cols=1, subplot_titles=[
+        '<b>Movimentações / Posição</b>',
+        '<b>Investimentos</b>'
+    ], specs=[[{}], [{ 'type': 'domain' }]])
+
+    match schedule:
+        case 'weekly':
+            refresh = 'Semana'
+        case 'monthly':
+            refresh = 'Mês'
+        case 'quarterly':
+            refresh = 'Quartil'
+        case 'yearly':
+            refresh = 'Ano'
+        case 'daily' | _:
+            refresh = 'Dia'
+    # fig = go.Figure()
+    random.seed()
+    dict_colors = {}
+    invest = []
+    invest_type = []
+    for idx, cat in enumerate(category):
+        if dict_colors.get(cat):
+            marker = {'color':dict_colors.get(cat)}
+            pick_legend = False
+        else:
+            dict_colors[cat] = f"rgb({random.randrange(0, 255)}, {random.randrange(0, 255)}, {random.randrange(0, 255)})"
+            marker = {'color':dict_colors.get(cat)}
+            pick_legend = True
+        fig.add_trace(
+            go.Bar(
+                x=[X[idx]],
+                y=[Y[idx]],
+                name=cat,
+                marker=marker,
+                showlegend=pick_legend,
+                legendgroup=cat,
+                text=f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}',
+                textposition='none',
+                hoverinfo='name+text'
+                ),
+                row=1,
+                col=1
+        )
+        if cat == 'Aplicacao':
+            invest.append(abs(Y[idx]))
+            invest_type.append(description[idx])
+
+    fig.add_trace(
+            go.Pie(labels=invest_type, values=invest, textinfo='percent+value'),
+            row=2,
+            col=1
+        )
+    fig.update_layout()
+
+    # range_dates = [X[0]+datetime.timedelta(days=day) for day in range((X[-1]-X[0]).days)]
+    # excluded_dates = list(set(range_dates).difference(X))
+    # print(excluded_dates, range_dates)
+    fig.update_xaxes(
+        title_text=f'Período [{refresh}]',
+        griddash='dot',
+        row=1,
+        col=1
+        # rangebreaks=[{'values':excluded_dates}]
+        )
+    fig.update_yaxes(title_text='valor', row=1, col=1)
+    fig.update_layout(template='plotly_dark', barmode='relative')
+    return fig
+
+
+def create_scatterplot(fig, X, Y, schedule):
     random.seed()
     marker = {'color':f"rgb({random.randrange(0, 255)}, {random.randrange(0, 255)}, {random.randrange(0, 255)})"}
 
-    fig.add_trace(go.Scatter(x=X, y=Y, textposition='top center',mode='lines+markers+text', name='Saldo do dia', marker=marker, legendrank=1))
-    # fig.add_trace(
-    #         go.Line(x=[X[idx]], y=[sum(Y)], name='Saldo')
-    #     )
-    # fig.update_xaxes(title_text='Date [MM DD, YYYY]')
-    # fig.update_yaxes(title_text='valor')
-    # fig.update_layout(template='plotly_dark', title='Test Pix')
+    match schedule:
+        case 'weekly':
+            refresh = 'semanal'
+        case 'monthly':
+            refresh = 'mensal'
+        case 'quarterly':
+            refresh = 'quadrimestre'
+        case 'yearly':
+            refresh = 'anual'
+        case 'daily' | _:
+            refresh = 'diário'
+    scatter_obj = go.Scatter(
+            x=X,
+            y=Y,
+            text=[f'R$ {value:.2f}' for value in Y],
+            textposition='top center',
+            mode='lines+markers+text',
+            name=f'Saldo {refresh}',
+            marker=marker,
+            legendrank=1,
+            hoverinfo='name+text',
+            line={'shape':'spline'}
+            )
+    fig.add_trace(scatter_obj)
     return fig

@@ -3,6 +3,8 @@ import datetime
 from polars import DataFrame
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QSize, QModelIndex
+from schema.finance import FinanceSchema
+from models.preprocess import load_csv_df, pre_process_csv
 
 class FinanceModel(QtCore.QAbstractTableModel):
 
@@ -30,21 +32,10 @@ class FinanceModel(QtCore.QAbstractTableModel):
             'Categoria': "🚩",
         }
 
-        self.schema = pl.Schema({
-            'Data': pl.Date(),
-            'Descrição': pl.String(),
-            'Valor': pl.Float64(),
-            'Saldo': pl.Float64(),
-            'Categoria': pl.String()
-            })
+        self.schema = FinanceSchema()
+        self.separator_defined = ';'
+        self._data = pre_process_csv(path)
 
-        df = pl.read_csv(path, separator=';', schema=self.schema, decimal_comma=True)
-        df = df.with_columns(
-            pl.col('Descrição')\
-            .map_elements(lambda val: val.split(':')[0] , return_dtype=pl.String)\
-            .alias('Categoria')
-            )#.sort(self.column_name_maps['dia'], descending=True)
-        self._data = df
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> str:
         """
@@ -59,7 +50,10 @@ class FinanceModel(QtCore.QAbstractTableModel):
         """
         if role == Qt.ItemDataRole.DisplayRole:
             value = self._data.item(row=index.row(), column=index.column())
-            return str(value)
+            if isinstance(value, float):
+                return f'{value:.2f}'
+            else:
+                return str(value)
         # if role == Qt.ItemDataRole.InitialSortOrderRole:
         #     value = self._data.sort(pl.col(index))
         #     return str(value)
@@ -199,7 +193,27 @@ class FinanceModel(QtCore.QAbstractTableModel):
             'Categoria': ['Manually added!']
         }
         df_dict_row = pl.DataFrame(data_to_be_added, schema=self.schema)
-        self._data = pl.concat([self._data, df_dict_row], rechunk=True).sort('Data')
+        self._data = pl.concat([self._data, df_dict_row], rechunk=True)
+        self.recalculate_data()
+        # self._data = self._data.with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
+        self.endInsertRows()
+        self.layoutChanged.emit()
+        return True
+    
+
+    def add_rows(self, new_df) -> bool:
+        """
+        Adds a registry to the data
+
+        Args:
+            dict_row (dict): A dictionary filled with:
+                date, description, operation and amount
+
+        Returns:
+            bool: True when success
+        """
+        self.beginInsertRows(QModelIndex(), self.rowCount(), self.rowCount()+new_df.shape[0]-1)
+        self._data = pl.concat([self._data, new_df], rechunk=True)
         self.recalculate_data()
         # self._data = self._data.with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
         self.endInsertRows()
@@ -211,21 +225,51 @@ class FinanceModel(QtCore.QAbstractTableModel):
         """
         Recalculates the cumulative sum.
         """
-        self._data = self._data.sort('Data')\
+        self._data = self._data.sort(*self._data.columns)\
                 .with_columns(pl.col('Valor').cum_sum().alias('Saldo'))
 
+
+    def save_to_file(self, file) -> bool:
+        self._data.write_csv(file, separator=self.separator_defined,float_precision=2)
+        return True
+
 #------------------------ QUERIES TO BE ADDED
-    def get_pix_data(self):
+    def get_transactions_by(self, refresh_schedule: str):
+        match refresh_schedule:
+            case 'weekly':
+                trunc_str = '1w'
+            case 'monthly':
+                trunc_str = '1mo'
+            case 'quarterly':
+                trunc_str = '1q'
+            case 'yearly':
+                trunc_str = '1y'
+            case 'daily' | _:
+                trunc_str = '1d'
         return self._data\
-            .group_by('Data', 'Categoria')\
+            .group_by(pl.col('Data').dt.truncate(trunc_str), 'Descrição', 'Categoria')\
             .agg(pl.col('Valor').sum())\
             .sort('Data').to_dict()
             # .filter(pl.col(self.column_name_maps['cat']).str.contains('Pix'))\
             #.dt.truncate('1mo')
 
-    def get_total_amount_by_day(self):
+    def get_total_amount_by(self, refresh_schedule: str ):
+        match refresh_schedule:
+            case 'weekly':
+                trunc_str = '1w'
+            case 'monthly':
+                trunc_str = '1mo'
+            case 'quarterly':
+                trunc_str = '1q'
+            case 'yearly':
+                trunc_str = '1y'
+            case 'daily' | _:
+                trunc_str = '1d'
         return self._data\
             .select(
-                'Data',
-                pl.col('Saldo').last().over('Data').alias('saldo final do dia')
-                ).unique().sort('Data').to_dict()
+                pl.col('Data').dt.truncate(trunc_str),
+                pl.col('Saldo').last().over(pl.col('Data').dt.truncate(trunc_str)).alias('Saldo período')
+                ).sort('Data').to_dict()
+
+    # def get_current_amount(self):
+    #     return self._data.select('Data', 'Saldo').to_dict()

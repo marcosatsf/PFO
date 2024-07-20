@@ -249,9 +249,20 @@ class FinanceModel(QtCore.QAbstractTableModel):
         return self._data\
             .group_by(pl.col('Data').dt.truncate(trunc_str), 'Descrição', 'Categoria')\
             .agg(pl.col('Valor').sum())\
-            .sort('Data').to_dict()
+            .sort('Data')\
+            .to_dict()
             # .filter(pl.col(self.column_name_maps['cat']).str.contains('Pix'))\
             #.dt.truncate('1mo')
+
+
+    def get_top_significant_expenses_by_category(self):
+        return self._data\
+            .group_by('Categoria')\
+            .agg(pl.col('Valor').abs().sum())\
+            .sort(by=pl.col('Valor'),descending=True)\
+            .select('Categoria', 'Valor')\
+            .to_dict(as_series=False)
+
 
     def get_total_amount_by(self, refresh_schedule: str ):
         match refresh_schedule:

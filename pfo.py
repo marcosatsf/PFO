@@ -192,8 +192,25 @@ class MainWindow(QMainWindow):
 
         bar_values = self.model.get_transactions_by(refresh_schedule=self.current_refresh)
         # print(value)
-        
-        fig = create_plot_bar(fig, bar_values['Data'], bar_values['Valor'], bar_values['Categoria'], bar_values['Descrição'], self.current_refresh)
+        rank_values = self.model.get_top_significant_expenses_by_category()
+        print(rank_values)
+        fig = create_plot_bar(
+            fig,
+            bar_values['Data'],
+            bar_values['Valor'],
+            bar_values['Categoria'],
+            bar_values['Descrição'],
+            rank_values,
+            self.current_refresh)
+        # fig = create_plot_bar(
+        #     fig,
+        #     bar_values['Data'],
+        #     bar_values['Valor'],
+        #     bar_values['Categoria'],
+        #     bar_values['Descrição'],
+        #     rank_values['Categoria'],
+        #     rank_values['Valor'],
+        #     self.current_refresh)
 
         scatter_values = self.model.get_total_amount_by(refresh_schedule=self.current_refresh)
         # value = self.model.get_current_amount()

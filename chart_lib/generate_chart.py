@@ -137,11 +137,73 @@ def create_plot_bar_2(fig, X, Y, category, schedule):
     return fig
 
 
-def create_plot_bar(fig, X, Y, category, description, schedule):
-    fig = make_subplots(rows=2, cols=1, subplot_titles=[
+def generate_grid_specs(grid: tuple) -> list[list[dict]]:
+    """
+    Creates a grid of dicts. e.g:
+    2x3:
+    [
+    [{},{},{}],
+    [{},{},{}]
+    ]
+
+    Args:
+        grid (tuple): _description_
+
+    Returns:
+        list[list[dict]]: _description_
+    """
+    return [[None for _ in range(grid[1])] for _ in range(grid[0])]
+
+
+def populate_grid_specs(grid_specs: list[list[dict]], list_objs: list[dict]) -> dict:
+    obj_grid = {}
+    for obj in list_objs:
+        name = obj['name']
+        x1, y1, x2, y2 = obj['coord']
+        if x2 > x1:
+            if y2 > y1:
+                grid_specs[x1][y1] = {'rowspan': x2-x1+1, 'colspan': y2-y1+1}
+            else: #means only equal (y2 = y1), never less
+                grid_specs[x1][y1] = {'rowspan': x2-x1+1}
+        else: #means only equal (x2 = x1), never less
+            if y2 > y1:
+                grid_specs[x1][y1] = {'colspan': y2-y1+1}
+            else: #means only equal (y2 = y1), never less
+                grid_specs[x1][y1] = {}
+        if name == 'pie':
+            grid_specs[x1][y1]['type'] = 'domain'
+        if name == 'treemap':
+            grid_specs[x1][y1]['type'] = 'treemap'
+        obj_grid[name] = (x1+1,y1+1)
+    return grid_specs, obj_grid
+
+
+def create_plot_bar(fig, X, Y, category, description, rankdf, schedule):
+    grid = (3,4)
+    grid_spec = generate_grid_specs(grid)
+    grid_specs, obj_grid = populate_grid_specs(
+        grid_spec,
+        [
+            {'name':'bar', 'coord': (0,0,0,0)},
+            {'name':'pie', 'coord': (1,0,1,0)},
+            {'name':'treemap', 'coord': (0,1,2,3)},
+        ])
+    # [
+    #         {'name':'bar', 'coord': (0,0,2,2)},
+    #         {'name':'pie', 'coord': (0,3,0,3)},
+    #         {'name':'treemap', 'coord': (1,3,2,3)},
+    #     ])
+    for e in grid_specs:
+        print(e)
+
+    print(obj_grid)
+
+    fig = make_subplots(rows=grid[0], cols=grid[1], subplot_titles=[
         '<b>Movimentações / Posição</b>',
-        '<b>Investimentos</b>'
-    ], specs=[[{}], [{ 'type': 'domain' }]])
+        '<b>Investimentos</b>',
+        '<b>Categorias mais usadas</b>'
+    ], specs=grid_specs)
+    # ], specs=[[{}, { 'type': 'domain' }]])
 
     match schedule:
         case 'weekly':
@@ -177,21 +239,37 @@ def create_plot_bar(fig, X, Y, category, description, schedule):
                 legendgroup=cat,
                 text=f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}',
                 textposition='none',
-                hoverinfo='name+text'
+                hoverinfo='name+text',
+                legendrank=rankdf['Categoria'].index(cat)+2
                 ),
-                row=1,
-                col=1
+                row=obj_grid['bar'][0],
+                col=obj_grid['bar'][1]
         )
         if cat == 'Aplicacao':
             invest.append(abs(Y[idx]))
             invest_type.append(description[idx])
 
     fig.add_trace(
-            go.Pie(labels=invest_type, values=invest, textinfo='percent+value'),
-            row=2,
-            col=1
+            go.Pie(
+                labels=invest_type,
+                values=invest,
+                textinfo='percent+value',
+                showlegend=False),
+            row=obj_grid['pie'][0],
+            col=obj_grid['pie'][1]
         )
-    fig.update_layout()
+    print(rankdf)
+    fig.add_trace(
+            go.Treemap(
+                labels=rankdf['Categoria'],
+                values=rankdf['Valor'],
+                maxdepth=2,
+                root_color="white",
+                textinfo='label+value+percent parent+percent entry'),
+            row=obj_grid['treemap'][0],
+            col=obj_grid['treemap'][1]
+        )
+    fig.update_layout(margin = dict(t=50, l=25, r=25, b=25))
 
     # range_dates = [X[0]+datetime.timedelta(days=day) for day in range((X[-1]-X[0]).days)]
     # excluded_dates = list(set(range_dates).difference(X))
@@ -199,11 +277,15 @@ def create_plot_bar(fig, X, Y, category, description, schedule):
     fig.update_xaxes(
         title_text=f'Período [{refresh}]',
         griddash='dot',
-        row=1,
-        col=1
+        row=obj_grid['bar'][0],
+        col=obj_grid['bar'][1]
         # rangebreaks=[{'values':excluded_dates}]
         )
-    fig.update_yaxes(title_text='valor', row=1, col=1)
+    fig.update_yaxes(
+        title_text='valor',
+        row=obj_grid['bar'][0],
+        col=obj_grid['bar'][1]
+        )
     fig.update_layout(template='plotly_dark', barmode='relative')
     return fig
 

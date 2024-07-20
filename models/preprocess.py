@@ -100,7 +100,7 @@ def handle_extrato_full(data: str) -> pl.DataFrame:
     _, bank_statement = data.split('\n\n')
     if 'Data Lançamento' == bank_statement.split(';', maxsplit=1)[0]:
         bank_statement = bank_statement.replace('Data Lançamento', 'Data')
-    file_name = f'tmp_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
+    file_name = f'csv_files/tmp_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
     with open(file_name, 'w') as f:
         f.write(re.sub(r'(?<=[0-9])\.(?=[0-9])', '', bank_statement))
     return file_name

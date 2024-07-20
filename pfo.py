@@ -9,7 +9,8 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCore import Qt, QSize
 import polars as pl
 import plotly.graph_objects as go
-from chart_lib.generate_chart import generate_test_data, create_plot_bar, create_scatterplot
+from chart_lib.functions import p_obj
+from chart_lib.generate_chart import ChartBuilder
 import datetime
 from dialogs.addnewregistry import AddNewRegistry
 from dotenv import load_dotenv
@@ -95,6 +96,11 @@ class MainWindow(QMainWindow):
         # self.browser.setSizePolicy(qsize_browser)
         hlayout_analysis.addWidget(self.browser)
 
+        self.chart_model = ChartBuilder(
+            grid=(3,4),
+            refresh=self.current_refresh
+        )
+        self.browser.setHtml(self.chart_model.get_figure().to_html(include_plotlyjs='cdn'))
         self.update_charts()
         self.model.layoutChanged.connect(self.update_charts)
 
@@ -167,7 +173,7 @@ class MainWindow(QMainWindow):
 
 
     def save_file(self):
-        filename = f'checkpoint_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
+        filename = f'csv_files/checkpoint_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
         self.model.save_to_file(filename)
         self.set_initial_path_env(filename)
 
@@ -188,38 +194,18 @@ class MainWindow(QMainWindow):
 
 
     def update_charts(self):
-        fig = go.Figure()
-
         bar_values = self.model.get_transactions_by(refresh_schedule=self.current_refresh)
-        # print(value)
         rank_values = self.model.get_top_significant_expenses_by_category()
-        print(rank_values)
-        fig = create_plot_bar(
-            fig,
-            bar_values['Data'],
-            bar_values['Valor'],
-            bar_values['Categoria'],
-            bar_values['Descrição'],
-            rank_values,
-            self.current_refresh)
-        # fig = create_plot_bar(
-        #     fig,
-        #     bar_values['Data'],
-        #     bar_values['Valor'],
-        #     bar_values['Categoria'],
-        #     bar_values['Descrição'],
-        #     rank_values['Categoria'],
-        #     rank_values['Valor'],
-        #     self.current_refresh)
-
         scatter_values = self.model.get_total_amount_by(refresh_schedule=self.current_refresh)
-        # value = self.model.get_current_amount()
-        print(scatter_values)
-        #['Data'], value['Saldo período']
-        fig = create_scatterplot(fig, *scatter_values.values(), self.current_refresh)
-        # fig = create_scatterplot(fig, value['Data'], value['Saldo'])
-        # fig = generate_test_data()
-        self.browser.setHtml(fig.to_html(include_plotlyjs='cdn'))
+        # p_obj(bar_values)
+        # p_obj(rank_values)
+        # p_obj(scatter_values)
+        self.chart_model.refresh_plots(
+            bar_values=bar_values,
+            rank_values=rank_values,
+            scatter_values=scatter_values
+        )
+        self.browser.setHtml(self.chart_model.get_figure().to_html(include_plotlyjs='cdn'))
 
 
     def add(self, s):

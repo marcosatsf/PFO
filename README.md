@@ -6,7 +6,7 @@ The aim of this program is to help you with your finance life, quickly analyze h
 ## Preview 
 (Keep in mind that this is a WIP, so a lot of things might have changed on you clone this repo 👍):
 
-![PFO_preview](https://github.com/marcosatsf/PFO/tree/main/assets/videos/pfo_example.gif)
+<img src="assets/videos/pfo_example.gif" width="90%" height="90%"/>
 
 # How-To
 

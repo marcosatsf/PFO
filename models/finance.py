@@ -4,10 +4,9 @@ from polars import DataFrame
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QSize, QModelIndex
 from schema.finance import FinanceSchema
-from models.preprocess import load_csv_df, pre_process_csv
+from models.preprocess import pre_process_csv
 
 class FinanceModel(QtCore.QAbstractTableModel):
-
     def __init__(self, path: str):
         """
         Initialize finance model.
@@ -121,6 +120,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
         """
         return self._data.shape[0]
 
+
     def columnCount(self, index=QModelIndex()) -> int:
         """
         Gives the total count of columns
@@ -132,6 +132,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
             int: Total columns
         """
         return self._data.shape[1]
+
 
     def remove_registry(self, index=QModelIndex()) -> bool:
         """

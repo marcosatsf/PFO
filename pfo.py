@@ -76,16 +76,24 @@ class MainWindow(QMainWindow):
         qsize_chartopt.setHorizontalStretch(1)
         self.chart_menu.setSizePolicy(qsize_chartopt)
 
-        # Daily group
-        daily_b = QPushButton(QIcon("assets\icons\in.png"), "Daily", self)
+        # Refresh buttons
+        daily_b = QPushButton(QIcon("assets\icons\in.png"), "Diário", self)
         daily_b.setEnabled(True)
-
-        # Carregar menu
-        weekly_b = QPushButton(QIcon("assets\icons\out.png"), "Weekly", self)
+        weekly_b = QPushButton(QIcon("assets\icons\out.png"), "Semanal", self)
         weekly_b.setEnabled(True)
+        monthly_b = QPushButton(QIcon("assets\icons\out.png"), "Mensal", self)
+        monthly_b.setEnabled(True)
+        quarterly_b = QPushButton(QIcon("assets\icons\out.png"), "Quartil", self)
+        quarterly_b.setEnabled(True)
+        yearly_b = QPushButton(QIcon("assets\icons\out.png"), "Anual", self)
+        yearly_b.setEnabled(True)
+
 
         menu_vlayout.addWidget(daily_b)
         menu_vlayout.addWidget(weekly_b)
+        menu_vlayout.addWidget(monthly_b)
+        menu_vlayout.addWidget(quarterly_b)
+        menu_vlayout.addWidget(yearly_b)
         self.chart_menu.setLayout(menu_vlayout)
         hlayout_analysis.addWidget(self.chart_menu)
 
@@ -143,8 +151,12 @@ class MainWindow(QMainWindow):
 
         daily_b.clicked.connect(self.update_refresh('daily'))
         weekly_b.clicked.connect(self.update_refresh('weekly'))
+        monthly_b.clicked.connect(self.update_refresh('monthly'))
+        quarterly_b.clicked.connect(self.update_refresh('quarterly'))
+        yearly_b.clicked.connect(self.update_refresh('yearly'))
         # QMainWindow configs
-        self.setFixedSize(QSize(1600, 900))
+        self.setMinimumSize(QSize(1000, 600))
+        self.showMaximized()
         self.setCentralWidget(tabs)
 
 
@@ -183,14 +195,13 @@ class MainWindow(QMainWindow):
         filename, _ = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
         if filename:
             self.model.add_rows(pre_process_csv(filename))
-            print(self.model._data)
 
 
     def restore_file(self):
         filename, _ = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
         if filename:
             self.model = FinanceModel(filename)
-            print(self.model._data)
+            self.table.setModel(self.model)
 
 
     def update_charts(self):

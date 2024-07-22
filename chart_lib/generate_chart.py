@@ -118,8 +118,9 @@ class ChartBuilder():
                 go.Pie(
                     labels=invest_type,
                     values=invest,
-                    textinfo='percent+value',
-                    showlegend=False),
+                    textinfo='percent+value', #'label+percent+value'
+                    showlegend=False,
+                    hole=.5),
                 row=obj_grid['pie'][0],
                 col=obj_grid['pie'][1]
             )

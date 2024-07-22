@@ -27,7 +27,8 @@ class AddNewRegistry(QDialog):
 
         # Desc
         self.desc_input = QLineEdit()
-        self.desc_input.setMaxLength(50)
+        # TODO change the max length
+        self.desc_input.setMaxLength(200)
         self.desc_input.setPlaceholderText("Descrição para o seu item")
 
         # Operacao

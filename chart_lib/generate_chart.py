@@ -10,11 +10,16 @@ class ChartBuilder():
                  refresh: str = 'daily') -> None:
         random.seed()
         self.dict_colors = {}
+        self.dict_bank_colors = {}
         self.dict_markers = {}
         self.marker_scatter = {'color':f"rgb({random.randrange(0, 255)}, {random.randrange(0, 255)}, {random.randrange(0, 255)})"}
         self.current_grid = grid
         self.set_figure()
         self.set_schedule(refresh)
+
+
+    def add_bank_color(self, bank, color):
+        self.dict_bank_colors[bank] = color
 
 
     def set_schedule(self, value):
@@ -39,22 +44,24 @@ class ChartBuilder():
         return self.fig
 
 
-    def refresh_plots(self, bar_values, rank_values, scatter_values):
+    def refresh_plots(self, bar_values, rank_categories, rank_bank, scatter_values):
         self.create_plots(
             bar_values['Data'],
             bar_values['Valor'],
             bar_values['Categoria'],
             bar_values['Descrição'],
-            rank_values)
+            rank_categories,
+            rank_bank)
         self.create_scatterplot(
             *scatter_values.values())
 
 
-    def create_plots(self, X, Y, category, description, rankdf):
-        charts_struct = [
-                {'name':'bar', 'title': '<b>Movimentações / Posição</b>', 'coord': (0,0,2,2)},
-                {'name':'pie', 'title': '<b>Investimentos</b>', 'coord': (0,3,0,3)},
-                {'name':'treemap', 'title': '<b>Categorias mais usadas</b>', 'coord': (1,3,2,3)},
+    def create_plots(self, X, Y, category, description, rank_cat, rank_bank):
+        charts_struct = [ # coord -> (x1,y1,x2,y2)
+                {'type': 'bar', 'name': 'transactions', 'title': '<b>Movimentações / Posição</b>', 'coord': (0,0,2,2)},
+                {'type': 'pie', 'name': 'investment', 'title': '<b>Investimentos</b>', 'coord': (0,3,0,3)},
+                {'type': 'treemap' , 'name': 'bank', 'title': '<b>Distribuição nos bancos/corretoras</b>', 'coord': (1,3,1,3)},
+                {'type': 'treemap', 'name': 'categories', 'title': '<b>Categorias mais usadas</b>', 'coord': (2,3,2,3)}
             ]
 
         grid_specs, obj_grid = populate_grid_specs(
@@ -105,10 +112,10 @@ class ChartBuilder():
                     text=f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}',
                     textposition='none',
                     hoverinfo='name+text',
-                    legendrank=rankdf['Categoria'].index(cat)+2
+                    legendrank=rank_cat['Categoria'].index(cat)+2
                     ),
-                    row=obj_grid['bar'][0],
-                    col=obj_grid['bar'][1]
+                    row=obj_grid['transactions'][0],
+                    col=obj_grid['transactions'][1]
             )
             if cat == 'Aplicacao':
                 invest.append(abs(Y[idx]))
@@ -121,36 +128,51 @@ class ChartBuilder():
                     textinfo='percent+value', #'label+percent+value'
                     showlegend=False,
                     hole=.5),
-                row=obj_grid['pie'][0],
-                col=obj_grid['pie'][1]
+                row=obj_grid['investment'][0],
+                col=obj_grid['investment'][1]
             )
-        # Treemap
+        print(self.dict_bank_colors)
+        # Treemap bank
         self.fig.add_trace(
                 go.Treemap(
-                    labels=rankdf['Categoria'],
-                    values=rankdf['Valor'],
-                    parents=['']*len(rankdf['Categoria']),
+                    labels=rank_bank['Banco/Corretora'],
+                    values=rank_bank['Valor'],
+                    parents=['']*len(rank_bank['Banco/Corretora']),
                     maxdepth=2,
                     root_color="black",
                     textinfo='label+value+percent root',
-                    marker_colors=[self.dict_colors.get(cat) for cat in rankdf['Categoria']]),
-                row=obj_grid['treemap'][0],
-                col=obj_grid['treemap'][1]
+                    marker_colors=[self.dict_bank_colors[bank] for bank in rank_bank['Banco/Corretora']]),
+                row=obj_grid['bank'][0],
+                col=obj_grid['bank'][1]
             )
         self.fig.update_layout(margin = dict(t=50, l=25, r=25, b=25))
 
+        # Treemap categories
+        self.fig.add_trace(
+                go.Treemap(
+                    labels=rank_cat['Categoria'],
+                    values=rank_cat['Valor'],
+                    parents=['']*len(rank_cat['Categoria']),
+                    maxdepth=5,
+                    root_color="black",
+                    textinfo='label+value+percent root',
+                    marker_colors=[self.dict_colors.get(cat) for cat in rank_cat['Categoria']]),
+                row=obj_grid['categories'][0],
+                col=obj_grid['categories'][1]
+            )
+        self.fig.update_layout(margin = dict(t=50, l=25, r=25, b=25))
 
         self.fig.update_xaxes(
             title_text=f'Período [{self.refresh_schedule_tuple[0]}]',
             griddash='dot',
-            row=obj_grid['bar'][0],
-            col=obj_grid['bar'][1]
+            row=obj_grid['transactions'][0],
+            col=obj_grid['transactions'][1]
             # rangebreaks=[{'values':excluded_dates}]
             )
         self.fig.update_yaxes(
             title_text='valor',
-            row=obj_grid['bar'][0],
-            col=obj_grid['bar'][1]
+            row=obj_grid['transactions'][0],
+            col=obj_grid['transactions'][1]
             )
         self.fig.update_layout(template='plotly_dark', barmode='relative')
 

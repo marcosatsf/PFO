@@ -1,10 +1,10 @@
 import os
 import sys
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction, QIcon, QColor
 from PyQt6.QtWidgets import (QMainWindow, QApplication, QTableView,
                              QPushButton, QFileDialog, QHeaderView, QTabWidget,
                              QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
-                             QSizePolicy, QLabel)
+                             QSizePolicy, QInputDialog, QColorDialog)
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtCore import Qt, QSize
 import polars as pl
@@ -13,12 +13,13 @@ from chart_lib.functions import p_obj
 from chart_lib.generate_chart import ChartBuilder
 import datetime
 from dialogs.addnewregistry import AddNewRegistry
-from dotenv import load_dotenv
+import dotenv
 from models.finance import FinanceModel
-from models.preprocess import pre_process_csv
+from preprocess_lib.csv import pre_process_csv
 from qt_material import apply_stylesheet
 
-load_dotenv()
+dotenv_file = dotenv.find_dotenv()
+dotenv.load_dotenv(dotenv_file)
 extra = {
 
     # Button colors
@@ -33,8 +34,8 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("PFO - Personal Finance Organizer")
-        self.load_set_envs()
-        self.model = FinanceModel(self.initial_load_filename)
+        env_vars = self.load_set_envs()
+        self.model = FinanceModel(env_vars['INITIAL_LOAD_PATH'], env_vars['DEFAULT_BANK'])
 
         menu = self.menuBar()
         file_menu = menu.addMenu("Arquivo")
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
             grid=(3,4),
             refresh=self.current_refresh
         )
+        self.chart_model.add_bank_color(env_vars['DEFAULT_BANK'], env_vars['DEFAULT_BANK_COLOR'])
         self.browser.setHtml(self.chart_model.get_figure().to_html(include_plotlyjs='cdn'))
         self.update_charts()
         self.model.layoutChanged.connect(self.update_charts)
@@ -161,15 +163,30 @@ class MainWindow(QMainWindow):
 
 
     def load_set_envs(self):
-        self.initial_load_filename = os.getenv('INITIAL_LOAD_PATH')
-        print(self.initial_load_filename)
-        if not self.initial_load_filename:
+        return_dict = dotenv.dotenv_values(dotenv_file)
+
+        if not return_dict.get('INITIAL_LOAD_PATH'):
             dlg = QMessageBox(self)
             dlg.setWindowTitle("Tem algo errado 😅 !")
             dlg.setText("Por favor, selecione um arquivo a ser carregado inicialmente!")
             dlg.exec()
-            self.initial_load_filename, _ = QFileDialog.getOpenFileName(self, 'Open first CSV', '', filter='Arquivos CSV (*.csv)')
-            self.set_initial_path_env(self.initial_load_filename)
+            return_dict['INITIAL_LOAD_PATH'], _ = QFileDialog.getOpenFileName(self, 'Open first CSV', '', filter='Arquivos CSV (*.csv)')
+            dotenv.set_key(dotenv_file, 'INITIAL_LOAD_PATH', return_dict['INITIAL_LOAD_PATH'])
+        if not return_dict.get('DEFAULT_BANK'):
+            dlg_success = False
+            while not dlg_success:
+                return_dict['DEFAULT_BANK'], dlg_success = QInputDialog.getText(self, "Tem algo errado 😅 !", "Por favor, insira seu banco mais usado:")
+            dotenv.set_key(dotenv_file, 'DEFAULT_BANK', return_dict['DEFAULT_BANK'])
+        if not return_dict.get('DEFAULT_BANK_COLOR'):
+            dlg_success = False
+            color = QColor()
+            while not color.isValid():
+                color = QColorDialog.getColor(parent=self, title=f"Selecione a cor que representa o banco {return_dict['DEFAULT_BANK']} para você")
+            return_dict['DEFAULT_BANK_COLOR'] = 'rgb' + str(color.getRgb())
+            print(color, color.getRgb)
+            dotenv.set_key(dotenv_file, 'DEFAULT_BANK_COLOR', return_dict['DEFAULT_BANK_COLOR'])
+
+        return return_dict
 
 
     def update_refresh(self, refresh):
@@ -179,9 +196,9 @@ class MainWindow(QMainWindow):
         return set_refresh
 
 
-    def set_initial_path_env(self, path):
+    def set_env_var(self, key, value):
         with open('.env', 'w') as f:
-                f.write(f'INITIAL_LOAD_PATH="{path}"')
+                f.write(f'key="{value}"')
 
 
     def save_file(self):
@@ -194,7 +211,9 @@ class MainWindow(QMainWindow):
     def loadplus_file(self):
         filename, _ = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
         if filename:
-            self.model.add_rows(pre_process_csv(filename))
+            while not dlg_success:
+                bank_name, dlg_success = QInputDialog.getText(self, "Banco", "Por favor, informe o banco/corretora das operações:")
+            self.model.add_rows(pre_process_csv(filename, bank=bank_name))
 
 
     def restore_file(self):
@@ -205,15 +224,18 @@ class MainWindow(QMainWindow):
 
 
     def update_charts(self):
+        print(self.model._data)
         bar_values = self.model.get_transactions_by(refresh_schedule=self.current_refresh)
-        rank_values = self.model.get_top_significant_expenses_by_category()
+        rank_categories = self.model.get_top_significant_expenses_by_category()
+        rank_bank = self.model.get_distribution_by_bank()
         scatter_values = self.model.get_total_amount_by(refresh_schedule=self.current_refresh)
         # p_obj(bar_values)
-        # p_obj(rank_values)
         # p_obj(scatter_values)
+        self.chart_model.set_schedule(self.current_refresh)
         self.chart_model.refresh_plots(
             bar_values=bar_values,
-            rank_values=rank_values,
+            rank_categories=rank_categories,
+            rank_bank=rank_bank,
             scatter_values=scatter_values
         )
         self.browser.setHtml(self.chart_model.get_figure().to_html(include_plotlyjs='cdn'))

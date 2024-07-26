@@ -8,6 +8,7 @@ class FinanceSchema(pl.Schema):
             'Descrição': pl.String(),
             'Valor': pl.Float64(),
             'Saldo': pl.Float64(),
-            'Categoria': pl.String()
+            'Categoria': pl.String(),
+            'Banco/Corretora': pl.String()
             }):
         super().__init__(schema)

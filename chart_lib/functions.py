@@ -24,7 +24,7 @@ def generate_grid_specs(grid: tuple) -> list[list[None]]:
 def populate_grid_specs(grid_specs: list[list[dict]], list_objs: list[dict]) -> dict:
     obj_grid = {}
     for obj in list_objs:
-        name = obj['name']
+        type_chart = obj['type']
         title = obj['title']
         x1, y1, x2, y2 = obj['coord']
         if x2 > x1:
@@ -37,9 +37,9 @@ def populate_grid_specs(grid_specs: list[list[dict]], list_objs: list[dict]) -> 
                 grid_specs[x1][y1] = {'colspan': y2-y1+1, 'title': title}
             else: #means only equal (y2 = y1), never less
                 grid_specs[x1][y1] = {'title': title}
-        if name == 'pie':
+        if type_chart == 'pie':
             grid_specs[x1][y1]['type'] = 'domain'
-        if name == 'treemap':
+        if type_chart == 'treemap':
             grid_specs[x1][y1]['type'] = 'treemap'
-        obj_grid[name] = (x1+1,y1+1)
+        obj_grid[obj['name']] = (x1+1,y1+1)
     return grid_specs, obj_grid

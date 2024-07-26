@@ -4,10 +4,11 @@ from polars import DataFrame
 from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QSize, QModelIndex
 from schema.finance import FinanceSchema
-from models.preprocess import pre_process_csv
+from preprocess_lib.csv import pre_process_csv
+
 
 class FinanceModel(QtCore.QAbstractTableModel):
-    def __init__(self, path: str):
+    def __init__(self, path: str, default_bank: str):
         """
         Initialize finance model.
 
@@ -29,11 +30,13 @@ class FinanceModel(QtCore.QAbstractTableModel):
             'Valor': "💲",
             'Saldo': "💲",
             'Categoria': "🚩",
+            'Banco/Corretora': "🏦"
         }
 
         self.schema = FinanceSchema()
         self.separator_defined = ';'
-        self._data = pre_process_csv(path)
+        self._data = pre_process_csv(path, bank=default_bank)
+        self.default_bank = default_bank
 
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> str:
@@ -191,7 +194,8 @@ class FinanceModel(QtCore.QAbstractTableModel):
             'Descrição': [dict_row['desc']],
             'Valor': [dict_row['amount']] if dict_row['operation'] == 'Entrada' else [-dict_row['amount']],
             'Saldo': [0.0],
-            'Categoria': ['Manually added!']
+            'Categoria': ['Manually added!'],
+            'Banco/Corretora': self.default_bank
         }
         df_dict_row = pl.DataFrame(data_to_be_added, schema=self.schema)
         self._data = pl.concat([self._data, df_dict_row], rechunk=True)
@@ -200,7 +204,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
         self.endInsertRows()
         self.layoutChanged.emit()
         return True
-    
+
 
     def add_rows(self, new_df) -> bool:
         """
@@ -262,6 +266,27 @@ class FinanceModel(QtCore.QAbstractTableModel):
             .agg(pl.col('Valor').abs().sum())\
             .sort(by=pl.col('Valor'),descending=True)\
             .select('Categoria', 'Valor')\
+            .to_dict(as_series=False)
+
+
+    def get_distribution_by_bank(self):
+        # return self._data\
+        #     .group_by('Banco/Corretora')\
+        #     .agg(pl.col('Valor').abs().sum())\
+        #     .sort(by=pl.col('Valor'),descending=True)\
+        #     .select('Banco/Corretora', 'Valor')\
+        #     .to_dict(as_series=False)
+        invest = self._data.filter(Categoria='Aplicacao')\
+                            .select('Banco/Corretora', 'Valor')\
+                            .group_by('Banco/Corretora')\
+                            .sum()\
+                            .select('Banco/Corretora', pl.col('Valor').abs())
+        current = self._data.group_by('Banco/Corretora')\
+                            .agg(pl.col('Saldo').last())\
+                            .select('Banco/Corretora', pl.col('Saldo').abs().alias('Valor'))
+        return pl.concat([current, invest], how='vertical')\
+            .group_by('Banco/Corretora').sum()\
+            .sort(by=pl.col('Valor'),descending=True)\
             .to_dict(as_series=False)
 
 

@@ -5,6 +5,10 @@ from PyQt6 import QtCore
 from PyQt6.QtCore import Qt, QSize, QModelIndex
 from schema.finance import FinanceSchema
 from preprocess_lib.csv import pre_process_csv
+from typing import TypedDict
+
+
+InvestmentDict = TypedDict('InvestmentDict', {'Descrição': list[str], 'Valor': list[float]})
 
 
 class FinanceModel(QtCore.QAbstractTableModel):
@@ -37,6 +41,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
         self.separator_defined = ';'
         self._data = pre_process_csv(path, bank=default_bank)
         self.default_bank = default_bank
+        self.available_bank = {default_bank.lower().capitalize()}
 
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> str:
@@ -176,6 +181,11 @@ class FinanceModel(QtCore.QAbstractTableModel):
             if orientation == Qt.Orientation.Vertical:
                 return str(section)
 
+
+    def get_columns_available():
+        return 
+
+
     def add_registry(self, dict_row) -> bool:
         """
         Adds a registry to the data
@@ -235,7 +245,11 @@ class FinanceModel(QtCore.QAbstractTableModel):
 
 
     def save_to_file(self, file) -> bool:
-        self._data.write_csv(file, separator=self.separator_defined,float_precision=2)
+        self._data.write_csv(
+            file, 
+            separator=self.separator_defined,
+            float_precision=2,
+            )
         return True
 
 #------------------------ QUERIES TO BE ADDED
@@ -269,6 +283,33 @@ class FinanceModel(QtCore.QAbstractTableModel):
             .to_dict(as_series=False)
 
 
+    def get_investments(self) -> InvestmentDict:
+        """
+        Generates query for investments, filtering by only invesments matters
+        and summing up all the entries to each of them.
+
+        Returns:
+            InvestmentDict: Returns a dict containing investments their respective
+            amount of money currently applied;
+        """
+        return self._data\
+            .filter(pl.col('Categoria').str.contains_any(
+                [
+                    'Aplicacao',
+                    'Credito Resgate',
+                    'Liquidez de Aplicação'
+                ]))\
+            .with_columns(
+                (pl.col('Valor')*-1).alias('Valor'),
+                pl.col('Descrição').str.split(by='"').list.get(1).str.to_uppercase().alias('Descrição')
+            )\
+            .group_by('Descrição')\
+            .agg(pl.col('Valor').sum())\
+            .filter(pl.col('Valor') >= 0)\
+            .select('Descrição', 'Valor')\
+            .to_dict(as_series=False)
+
+
     def get_distribution_by_bank(self):
         # return self._data\
         #     .group_by('Banco/Corretora')\
@@ -276,7 +317,7 @@ class FinanceModel(QtCore.QAbstractTableModel):
         #     .sort(by=pl.col('Valor'),descending=True)\
         #     .select('Banco/Corretora', 'Valor')\
         #     .to_dict(as_series=False)
-        invest = self._data.filter(Categoria='Aplicacao')\
+        invest = self._data.filter(pl.col('Categoria').str.contains_any(['Aplicacao', 'Credito Resgate']))\
                             .select('Banco/Corretora', 'Valor')\
                             .group_by('Banco/Corretora')\
                             .sum()\

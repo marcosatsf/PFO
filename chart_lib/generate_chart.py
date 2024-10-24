@@ -44,19 +44,20 @@ class ChartBuilder():
         return self.fig
 
 
-    def refresh_plots(self, bar_values, rank_categories, rank_bank, scatter_values):
+    def refresh_plots(self, bar_values, investments, rank_categories, rank_bank, scatter_values):
         self.create_plots(
             bar_values['Data'],
             bar_values['Valor'],
             bar_values['Categoria'],
             bar_values['Descrição'],
+            investments,
             rank_categories,
             rank_bank)
         self.create_scatterplot(
             *scatter_values.values())
 
 
-    def create_plots(self, X, Y, category, description, rank_cat, rank_bank):
+    def create_plots(self, X, Y, category, description, investments, rank_cat, rank_bank):
         charts_struct = [ # coord -> (x1,y1,x2,y2)
                 {'type': 'bar', 'name': 'transactions', 'title': '<b>Movimentações / Posição</b>', 'coord': (0,0,2,2)},
                 {'type': 'pie', 'name': 'investment', 'title': '<b>Investimentos</b>', 'coord': (0,3,0,3)},
@@ -69,11 +70,10 @@ class ChartBuilder():
             charts_struct
             )
 
-
-        p_obj(obj_grid)
+        #p_obj(obj_grid)
         # Define subplots
         title_list = [j.pop('title') for i in grid_specs for j in i if j and j.get('title')]
-        p_obj(title_list)
+        # p_obj(title_list)
         self.fig = make_subplots(
             rows=self.current_grid[0],
             cols=self.current_grid[1],
@@ -88,9 +88,8 @@ class ChartBuilder():
         # ]
 
         repeated_marker = []
-
-        invest = []
-        invest_type = []
+        # invest = []
+        # invest_type = []
         for idx, cat in enumerate(category):
             # if not self.dict_markers.get(cat):
             if not self.dict_colors.get(cat):
@@ -109,22 +108,58 @@ class ChartBuilder():
                     marker=marker,
                     showlegend=pick_legend,
                     legendgroup=cat,
-                    text=f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}',
+                    text=(f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}')
+                        + '<br>'
+                        + 'Descrição: '
+                        + (f'{description[idx][0:50]}' if len(description[idx]) < 50 else f'{description[idx][0:47]}...'),
                     textposition='none',
-                    hoverinfo='name+text',
-                    legendrank=rank_cat['Categoria'].index(cat)+2
+                    hoverinfo='x+name+text',
+                    hoverlabel=dict(
+                        namelength=-1
+                    ),
+                    # hovertemplate="<br>".join([
+                    #     "label: %{customdata[0]}",
+                    #     "width: %{width}",
+                    #     "height: %{y}",
+                    #     "area: %{customdata[1]}",
+                    # ])
+                    legendrank=sorted(rank_cat['Categoria']).index(cat)+2
                     ),
                     row=obj_grid['transactions'][0],
                     col=obj_grid['transactions'][1]
             )
-            if cat == 'Aplicacao':
-                invest.append(abs(Y[idx]))
-                invest_type.append(description[idx])
+        now_datetime = datetime.datetime.now()
+        last_30_days = now_datetime - datetime.timedelta(days=30)
+        self.fig.update_layout(
+            xaxis=dict(
+                rangeslider=dict(
+                    visible=True,
+                    thickness=0.04,
+                ),
+                type="date",
+                range=(last_30_days, now_datetime.strftime('%Y-%m-%d'))
+            ),
+            yaxis=dict(
+                fixedrange=False,
+            )
+        )
+        # self.fig.update_traces(
+        #     hovertemplate="<br>".join(
+        #             [
+        #                 "%{name}",
+        #                 "%{text}",
+        #                 "Data: %{x}"
+        #             ]
+        #         )
+        # )
+            # if cat == 'Aplicacao':
+            #     invest.append(abs(Y[idx]))
+            #     invest_type.append(description[idx].split('"')[1])
         # Pie
         self.fig.add_trace(
                 go.Pie(
-                    labels=invest_type,
-                    values=invest,
+                    labels=investments['Descrição'],
+                    values=investments['Valor'],
                     textinfo='percent+value', #'label+percent+value'
                     showlegend=False,
                     hole=.5),
@@ -178,154 +213,32 @@ class ChartBuilder():
 
 
     def create_scatterplot(self, X, Y):
+        partial_by_each = 5
         scatter_obj = go.Scatter(
                 x=X,
                 y=Y,
                 text=[f'R$ {value:.2f}' for value in Y],
                 textposition='top center',
-                mode='lines+markers+text',
+                mode='lines+markers',
                 name=f'Saldo {self.refresh_schedule_tuple[1]}',
                 marker=self.marker_scatter,
                 legendrank=1,
                 hoverinfo='name+text',
-                line={'shape':'spline'}
+                line={'shape':'spline'},
                 )
+        for idx, _ in enumerate(X):
+            self.fig.add_annotation(
+                x=X[idx],
+                y=Y[idx],
+                text=f'R$ {Y[idx]:.2f}' if idx % partial_by_each == 0 else '',
+                textangle=35,
+                showarrow=True if idx % partial_by_each == 0 else False,
+                # align='center',
+                yanchor='bottom',
+                xanchor='auto'
+            )
         self.fig.add_trace(scatter_obj)
-
 
         # range_dates = [X[0]+datetime.timedelta(days=day) for day in range((X[-1]-X[0]).days)]
         # excluded_dates = list(set(range_dates).difference(X))
         # print(excluded_dates, range_dates)
-
-# def create_plot_bar_2(fig, X, Y, category, schedule):
-#     match schedule:
-#         case 'weekly':
-#             refresh = 'Semana'
-#         case 'monthly':
-#             refresh = 'Mês'
-#         case 'quarterly':
-#             refresh = 'Quartil'
-#         case 'yearly':
-#             refresh = 'Ano'
-#         case 'daily' | _:
-#             refresh = 'Dia'
-#     # fig = go.Figure()
-#     random.seed()
-#     dict_colors = {}
-#     for idx, cat in enumerate(category):
-#         if dict_colors.get(cat):
-#             marker = {'color':dict_colors.get(cat)}
-#             pick_legend = False
-#         else:
-#             dict_colors[cat] = f"rgb({random.randrange(0, 255)}, {random.randrange(0, 255)}, {random.randrange(0, 255)})"
-#             marker = {'color':dict_colors.get(cat)}
-#             pick_legend = True
-#         fig.add_trace(
-#             go.Bar(
-#                 x=[X[idx]],
-#                 y=[Y[idx]],
-#                 name=cat,
-#                 marker=marker,
-#                 showlegend=pick_legend,
-#                 legendgroup=cat,
-#                 text=f'+ R$ {abs(Y[idx]):.2f}' if Y[idx] >= 0 else f'- R$ {abs(Y[idx]):.2f}',
-#                 textposition='none',
-#                 hoverinfo='name+text'
-#                 )
-#         )
-#     # fig.add_trace(
-#     #         go.Line(x=[X[idx]], y=[sum(Y)], name='Saldo')
-#     #     )
-
-#     # range_dates = [X[0]+datetime.timedelta(days=day) for day in range((X[-1]-X[0]).days)]
-#     # excluded_dates = list(set(range_dates).difference(X))
-#     # print(excluded_dates, range_dates)
-#     fig.update_xaxes(
-#         title_text=f'Período [{refresh}]',
-#         griddash='dot',
-#         # rangebreaks=[{'values':excluded_dates}]
-#         )
-#     fig.update_yaxes(title_text='valor')
-#     fig.update_layout(template='plotly_dark', title='Movimentações / Posição', barmode='relative')
-#     return fig
-
-
-# def generate_test_data():
-#     v2_cost = [
-#         3.48,
-#         2.61, 
-#         3.19, 
-#         2.32,
-#         2.90, #2024-07-04
-#         2.90,
-#         2.90,
-#         2.61,
-#         2.61,
-#         2.61
-#     ]
-
-#     v1_cost = [
-#         9.57,
-#         9.86,
-#         9.86, 
-#         10.44,
-#         9.28, #2024-07-04
-#         10.44,
-#         8.41,
-#         8.41,
-#         10.15,
-#         10.44
-#     ]
-#     fig = make_subplots(rows=1, cols=2, subplot_titles=[
-#         '<b>Cost estimation between versions</b>',
-#         '<b>Cost estimation (Avg)</b>'
-#     ])
-#     v1_color_marker = {
-#         'color':'#FF0000'
-#     }
-#     v2_color_marker = {
-#         'color':'#0011FF'
-#     }
-#     color_marker_diff_bar = {
-#         'color':'#00DD34'
-#     }
-#     BASE_DATE = '2024-06-30'
-#     BASE_DATETIME = datetime.date.fromisoformat(BASE_DATE)
-#     DATE = datetime.date.today() - BASE_DATETIME
-#     DAY = DATE.days
-
-#     def get_data_range(first_date:str, quantity:int) -> list:
-#         return [datetime.date.fromisoformat(first_date) + datetime.timedelta(days=day_cnt) for day_cnt in range(0, quantity)]
-#     # by cost
-#     fig.add_trace(go.Scatter(x=get_data_range(BASE_DATE, DAY), y=[float(e) for e in v2_cost], textposition='top center', text=[float(e) for e in v2_cost], mode='lines+markers+text', name='v2', marker=v2_color_marker, showlegend=False),row=1, col=1)
-#     fig.add_trace(go.Scatter(x=get_data_range(BASE_DATE, DAY), y=[float(e) for e in v1_cost], textposition='top center', text=[float(e) for e in v1_cost],mode='lines+markers+text', name='v1', marker=v1_color_marker, showlegend=False),row=1, col=1)
-#     fig.add_trace(go.Bar(
-#         x=get_data_range(BASE_DATE, DAY), 
-#         y=[v1-v2 for v1, v2 in zip(v1_cost, v2_cost)], 
-#         base=v2_cost, 
-#         texttemplate=[f'-{(v1-v2)/v1:.2%}' for v1, v2 in zip(v1_cost, v2_cost)],
-#         textposition="inside", 
-#         name='Cost difference',
-#         marker=color_marker_diff_bar
-#     ),row=1, col=1)
-#     fig.update_xaxes(title_text='Date [MM DD, YYYY]', row=1, col=1)
-#     fig.update_yaxes(title_text='Cost (monthly) [USD]', row=1, col=1)
-#     # by cost avg
-#     v1_avg = [sum(v1_cost)/DAY]
-#     v2_avg = [sum(v2_cost)/DAY]
-#     fig.add_trace(go.Scatter(x=[f'{DAY} day(s)'], y=v1_avg, textposition='top center', text=v1_avg,mode='lines+markers+text', name='v1', marker=v1_color_marker, legendrank=1),row=1, col=2)
-#     fig.add_trace(go.Scatter(x=[f'{DAY} day(s)'], y=v2_avg, textposition='top center', text=v2_avg, mode='lines+markers+text', name='v2', marker=v2_color_marker, legendrank=2),row=1, col=2)
-#     fig.add_trace(go.Bar(
-#         x=[f'{DAY} day(s)'], 
-#         y=[sum([v1-v2 for v1, v2 in zip(v1_cost, v2_cost)])/DAY], 
-#         base=v2_avg,
-#         texttemplate=[f'-{(v1-v2)/v1:.2%}' for v1, v2 in zip(v1_avg, v2_avg)],
-#         textposition="inside", 
-#         name='Avg. cost difference',
-#         marker=color_marker_diff_bar
-#     ),row=1, col=2)
-#     fig.update_xaxes(title_text='Date [MM DD, YYYY]', row=1, col=2)
-#     fig.update_yaxes(title_text='Cost (monthly) [USD]', row=1, col=2)
-#     # fig.update_layout(height=400)
-#     fig.update_layout(template='plotly_dark')
-#     return fig

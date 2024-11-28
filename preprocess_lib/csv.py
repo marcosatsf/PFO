@@ -6,6 +6,7 @@ import pandas as pd
 import datetime
 from typing import Union
 from schema.finance import FinanceSchema
+from preprocess_lib.transformations_map import ColumnMap
 
 
 def pre_process_csv(path: str, separation_char:str=';', bank:str='') -> pl.DataFrame:
@@ -28,7 +29,7 @@ def pre_process_csv(path: str, separation_char:str=';', bank:str='') -> pl.DataF
     # Remove unused info.
     if 'Extrato Conta Corrente' in data:
         _, data = data.split('\n\n')
-        file_name_to_exclude, separation_char = check_integrity_with_finance(data)
+        file_name_to_exclude, separation_char = check_integrity_with_finance(data, bank)
     # Try to load with various formats
     try:
         df = pl.read_csv(path,
@@ -49,26 +50,74 @@ def pre_process_csv(path: str, separation_char:str=';', bank:str='') -> pl.DataF
                     .with_columns(Saldo=pl.lit(0.0).cast(pl.Float64))\
                     .select('Data', 'Descrição', 'Valor', 'Saldo', 'Categoria')
         except pl.exceptions.ComputeError:
-            path, separation_char = check_integrity_with_finance(data)
+            # Path when we are uploading an invoice!
+            path, separation_char = check_integrity_with_finance(data, bank, data_type='invoice')
             df = load_csv_df(path,
                         separator=separation_char,
                         schema=FinanceSchema(),
                         decimal_comma=False)
+            file_name_to_exclude = path
     # Delete temporary file, if needed
     if file_name_to_exclude:
         os.remove(file_name_to_exclude)
     # Filter out data which is not important right now!
-    df = df.with_columns(pl.lit(bank).alias('Banco/Corretora'))
-    return df.filter(pl.col('Descrição') != 'Pagamento efetuado: "Debito Automatico Fatura Cartao Inter"')
+    df = df.with_columns(pl.col('Banco/Corretora').fill_null(bank))
+    # Deal with some especial cases
+    return df_transformations(df)
 
 
-def check_integrity_with_finance(data: str) -> Union[str, str]:
+def df_transformations(df:pl.DataFrame) -> pl.DataFrame:
+    """
+    Transformed dataframe based on utility.
+    1. Remove credit card invoice;
+    2. Map "Pagamento" to correct description;
+
+    Args:
+        df (pl.DataFrame): Dataframe to be filtered/transformed
+
+    Returns:
+        pl.DataFrame: Dataframe filtered/transformed
+    """
+    def cascade_when_then_structure(df:pl.DataFrame, map_column: list[dict], column_name:str):
+        for map_dict in map_column:
+            df = df.with_columns(
+                    pl.when(map_dict['predicate'])
+                    .then(map_dict['result'])
+                    .otherwise(pl.col(column_name))
+                    .alias(column_name)
+                )
+        return df
+
+    # Step 1 - according to docstring
+    df = df.filter(~pl.col('Descrição').str.contains_any(
+        [
+        'Pagamento efetuado: "Debito Automatico Fatura Cartao Inter"',
+        'Pagamento efetuado: "Pagamento fatura cartao Inter"',
+        'Pagamento Online De Fatura',
+        'Pagto Debito Automat'
+        ]))
+    # Step 2 - according to docstring
+    list_columns_2_transform = ['Descrição', 'Categoria']
+    for column_name in list_columns_2_transform:
+        cm = ColumnMap(curr_col=column_name)
+        df = cascade_when_then_structure(
+            df = df,
+            map_column = cm.get_column_mappings(),
+            column_name = column_name
+        )
+    # Return dataframe
+    return df
+
+
+def check_integrity_with_finance(data: str, bank: str, data_type: str = '') -> Union[str, str]:
     """
     Checks integrity of the file and tries to refactor and set columns according
     to the current FinanceSchema()
 
     Args:
         data (str): Data previouly loaded;
+        bank (str): Bank name to be added;
+        date_type (str, optional): type of data being loaded. Defaults to empty string.
 
     Raises:
         Exception: Not enough columns to parse
@@ -108,24 +157,37 @@ def check_integrity_with_finance(data: str) -> Union[str, str]:
             if not col_name in df.columns:
                 if col_name == 'Saldo':
                     df['Saldo'] = 0.0
-                if col_name == 'Categoria':
+                elif col_name == 'Categoria':
                     if 'Histórico' in df.columns:
                         df['Categoria'] = df['Histórico']
                     else:
                         df['Categoria'] = df.apply(lambda x:x['Descrição'].split(':')[0], axis=1)
+                elif col_name == 'Banco/Corretora':
+                    df['Banco/Corretora'] = bank
                 continue
+            # Transform any incorrect type under "Valor"
+            if col_name == 'Valor':
+                df[col_name] = df.apply(lambda x:re.sub(r'[^0-9-.]*', '', x[col_name].replace(',', '.')), axis=1)
             # Check Data type and adapt it!
+            print('PRINTING DEBUG!!!', col_name, df[col_name].dtype.name, col_type.lower())
             if not df[col_name].dtype.name == col_type.lower():
                 if col_type == 'Date':
                     df[col_name] = pd.to_datetime(arg=df[col_name], yearfirst=True, format='%Y-%m-%d')
                 else:
                     df[col_name] = df[col_name].astype(col_type.lower())
+                    if col_name == 'Valor' and data_type == 'invoice':
+                        df[col_name] = df[col_name] * -1
         except KeyError:
             print(df)
             raise Exception(f'Não há coluna {col_name}'\
                             f', por favor verifique e adicione a coluna {col_name}'\
                             f'com a seguinte lógica: {exception_cols[col_name]}!')
+    # Rename needed columns
+    if 'Lançamento' in df.columns:
+        df['Descrição'] = df['Lançamento']
     # reorder data
+    print(FinanceSchema().keys())
+    print(df.keys())
     df = df[FinanceSchema().keys()]
     df.to_csv(filename, sep=current_sep, index=False, header=True)
     return filename, current_sep

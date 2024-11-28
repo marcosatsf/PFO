@@ -14,11 +14,12 @@ from chart_lib.generate_chart import ChartBuilder
 import datetime
 from dialogs.addnewregistry import AddNewRegistry
 import dotenv
+from glob import glob
 from models.finance import FinanceModel
 from preprocess_lib.csv import pre_process_csv
 from qt_material import apply_stylesheet
 
-dotenv_file = dotenv.find_dotenv()
+dotenv_file = dotenv.find_dotenv('env/.env_global')
 dotenv.load_dotenv(dotenv_file)
 extra = {
 
@@ -196,23 +197,25 @@ class MainWindow(QMainWindow):
         return set_refresh
 
 
-    def set_env_var(self, key, value):
-        with open('.env', 'w') as f:
-                f.write(f'key="{value}"')
-
-
     def save_file(self):
         filename = f'csv_files/checkpoint_{datetime.datetime.now().strftime("%d%m%Y%H%M%S")}.csv'
         self.model.save_to_file(filename)
-        self.set_initial_path_env(filename)
-
+        # Delete older files
+        for path in glob('csv_files/checkpoint_*.csv')[:-3]:
+            os.remove(path)
+        dotenv.set_key(dotenv_file, 'INITIAL_LOAD_PATH', filename)
 
 
     def loadplus_file(self):
         filename, _ = QFileDialog.getOpenFileName(self, 'Open CSV', '', filter='Arquivos CSV (*.csv)')
         if filename:
+            dlg_success = False
             while not dlg_success:
                 bank_name, dlg_success = QInputDialog.getText(self, "Banco", "Por favor, informe o banco/corretora das operações:")
+            color = QColor()
+            while not color.isValid():
+                color = QColorDialog.getColor(parent=self, title=f"Selecione a cor que representa o banco {bank_name} para você")
+            self.chart_model.add_bank_color(bank_name, 'rgb' + str(color.getRgb()))
             self.model.add_rows(pre_process_csv(filename, bank=bank_name))
 
 
@@ -226,14 +229,17 @@ class MainWindow(QMainWindow):
     def update_charts(self):
         print(self.model._data)
         bar_values = self.model.get_transactions_by(refresh_schedule=self.current_refresh)
+        investments = self.model.get_investments()
         rank_categories = self.model.get_top_significant_expenses_by_category()
         rank_bank = self.model.get_distribution_by_bank()
         scatter_values = self.model.get_total_amount_by(refresh_schedule=self.current_refresh)
-        # p_obj(bar_values)
-        # p_obj(scatter_values)
+        #p_obj(bar_values)
+        #p_obj(rank_categories)
+        p_obj(investments)
         self.chart_model.set_schedule(self.current_refresh)
         self.chart_model.refresh_plots(
             bar_values=bar_values,
+            investments=investments,
             rank_categories=rank_categories,
             rank_bank=rank_bank,
             scatter_values=scatter_values
